@@ -1,0 +1,32 @@
+# Ambiente Virtual
+venv/
+.venv/
+env/
+.env
+
+# Cache do Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# PyInstaller
+build/
+dist/
+*.spec
+*.exe
+
+# Pastas e arquivos da Aplicação
+uploads/
+*.pdf
+*.dwg
+*.dxf
+
+# IDEs e Editores
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Sistema Operacional
+.DS_Store
+Thumbs.db
