@@ -20,7 +20,7 @@ def build():
     args = [
         'app.py',                         # Script principal
         '--name=%s' % EXE_NAME,           # Nome do .exe
-        '--onefile',                      # Arquivo único
+        '--onedir',                       # Modo pasta (abertura instantanea)
         '--noconsole',                    # Não abre CMD ao rodar
         '--add-data=templates;templates', # Inclui a pasta de templates
         '--hidden-import=pdf_para_dxf',   # Garante que o conversor seja incluído
