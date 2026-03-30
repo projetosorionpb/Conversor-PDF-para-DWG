@@ -165,6 +165,29 @@ def rgb_to_aci(ri, gi, bi):
     return aci_escolhido
 
 
+def mapear_cor_inteligente(ri, gi, bi):
+    """
+    Mapeia cores conforme a logica do script LISP:
+    - Preto (RGB < 16,16,16) -> ACI 7 (White/Black), Sem TrueColor
+    - Cinzas ACI (8, 9, 250-255) -> Mantem ACI original, TrueColor RGB 51,51,51
+    - Outras -> ACI mais proximo, TrueColor setado
+    
+    Retorna (aci, rgb_tupla_ou_None)
+    """
+    aci = rgb_to_aci(ri, gi, bi)
+    
+    # CASO 1: Preto Puro ou muito proximo (RGB 0,0,0 ate 15,15,15)
+    if ri < 16 and gi < 16 and bi < 16:
+        return 7, None  # Cor 7: Branco em fundo escuro, Preto em claro
+    
+    # CASO 2: Tons de Cinza ACI especificos (8, 9, 250-255)
+    if aci == 8 or aci == 9 or (250 <= aci <= 255):
+        return aci, (51, 51, 51)  # RGB 51,51,51 (cinza visivel em ambos)
+    
+    # CASO PADRAO: Usa RGB exato
+    return aci, (ri, gi, bi)
+
+
 # =============================================================
 # DETECCAO AUTOMATICA DE ESCALA
 # =============================================================
@@ -449,13 +472,21 @@ def obter_ou_criar_layer(doc_dxf, ri, gi, bi, prefixo=""):
     nome = "{}COR_{}".format(prefixo, hex_cor)
 
     if nome not in _layers_criados:
-        aci = rgb_to_aci(ri, gi, bi)
+        # Aplica mapeamento inteligente de cores
+        aci, rgb_final = mapear_cor_inteligente(ri, gi, bi)
+        
         if nome not in doc_dxf.layers:
             layer = doc_dxf.layers.add(nome)
         else:
             layer = doc_dxf.layers.get(nome)
+            
         layer.color = aci
-        layer.true_color = rgb2int((ri, gi, bi))
+        if rgb_final:
+            layer.true_color = rgb2int(rgb_final)
+        else:
+            # Para Cor 7 (Preto/Branco adaptativo), discard true_color para usar apenas ACI
+            layer.dxf.discard('true_color')
+                 
         layer.lineweight = 0
         _layers_criados.add(nome)
 
@@ -467,13 +498,21 @@ def obter_layer_texto(doc_dxf, ri, gi, bi, prefixo=""):
     nome = "{}TXT_{}".format(prefixo, hex_cor)
 
     if nome not in _layers_criados:
-        aci = rgb_to_aci(ri, gi, bi)
+        # Aplica mapeamento inteligente de cores
+        aci, rgb_final = mapear_cor_inteligente(ri, gi, bi)
+        
         if nome not in doc_dxf.layers:
             layer = doc_dxf.layers.add(nome)
         else:
             layer = doc_dxf.layers.get(nome)
+            
         layer.color = aci
-        layer.true_color = rgb2int((ri, gi, bi))
+        if rgb_final:
+            layer.true_color = rgb2int(rgb_final)
+        else:
+            # Para Cor 7 (Preto/Branco adaptativo), discard true_color para usar apenas ACI
+            layer.dxf.discard('true_color')
+                 
         layer.lineweight = 0
         _layers_criados.add(nome)
 
@@ -533,13 +572,16 @@ def converter_pagina(page, msp, doc_dxf, offset_y=0, escala=1.0, prefixo=""):
         # --- Lineweight ---
         lw = converter_lineweight(largura)
 
+        # Aplica mapeamento para a entidade
+        aci_ent, rgb_ent = mapear_cor_inteligente(ri, gi, bi)
         atribs = {
             "layer": layer,
-            "color": rgb_to_aci(ri, gi, bi),
-            "true_color": rgb2int((ri, gi, bi)),
+            "color": aci_ent,
             "linetype": linetype,
             "lineweight": -1,
         }
+        if rgb_ent:
+            atribs["true_color"] = rgb2int(rgb_ent)
 
         # --- HATCH para fill (preenchimento solido) ---
         if fill:
@@ -596,14 +638,16 @@ def converter_pagina(page, msp, doc_dxf, offset_y=0, escala=1.0, prefixo=""):
                     fill_layer = obter_ou_criar_layer(
                         doc_dxf, fill_ri, fill_gi, fill_bi, prefixo
                     )
-                    hatch = msp.add_hatch(
-                        dxfattribs={
-                            "layer": fill_layer,
-                            "color": rgb_to_aci(fill_ri, fill_gi, fill_bi),
-                            "true_color": rgb2int((fill_ri, fill_gi, fill_bi)),
-                            "lineweight": -1,
-                        }
-                    )
+                    aci_fill, rgb_fill = mapear_cor_inteligente(fill_ri, fill_gi, fill_bi)
+                    dxf_attrs = {
+                        "layer": fill_layer,
+                        "color": aci_fill,
+                        "lineweight": -1,
+                    }
+                    if rgb_fill:
+                        dxf_attrs["true_color"] = rgb2int(rgb_fill)
+                        
+                    hatch = msp.add_hatch(dxfattribs=dxf_attrs)
                     hatch.paths.add_polyline_path(
                         pontos_unicos + [pontos_unicos[0]],
                         is_closed=True
@@ -753,20 +797,22 @@ def converter_pagina(page, msp, doc_dxf, offset_y=0, escala=1.0, prefixo=""):
                 layer_txt = obter_layer_texto(doc_dxf, tri, tgi, tbi, prefixo)
                 altura_txt = size * escala
 
+                # Aplica mapeamento para o texto
+                aci_txt, rgb_txt = mapear_cor_inteligente(tri, tgi, tbi)
+                dxf_attrs_txt = {
+                    "layer": layer_txt,
+                    "char_height": altura_txt,
+                    "style": "Arial",
+                    "color": aci_txt,
+                    "insert": (x0, y0),
+                    "rotation": angulo,
+                    "lineweight": -1,
+                }
+                if rgb_txt:
+                    dxf_attrs_txt["true_color"] = rgb2int(rgb_txt)
+
                 try:
-                    mtext = msp.add_mtext(
-                        texto_bruto,
-                        dxfattribs={
-                            "layer": layer_txt,
-                            "char_height": altura_txt,
-                            "style": "Arial",
-                            "color": rgb_to_aci(tri, tgi, tbi),
-                            "true_color": rgb2int((tri, tgi, tbi)),
-                            "insert": (x0, y0),
-                            "rotation": angulo,
-                            "lineweight": -1,
-                        }
-                    )
+                    mtext = msp.add_mtext(texto_bruto, dxfattribs=dxf_attrs_txt)
                     mtext.dxf.attachment_point = 7  # bottom-left
                     total += 1
                 except Exception:
