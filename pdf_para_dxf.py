@@ -530,7 +530,7 @@ def converter_lineweight(largura_pdf):
 # =============================================================
 # CONVERSAO DE PAGINA
 # =============================================================
-def converter_pagina(page, msp, doc_dxf, offset_y=0, escala=1.0, prefixo=""):
+def converter_pagina(page, msp, doc_dxf, offset_y=0, escala=1.0, prefixo="", escala_desenho=None):
     H = page.rect.height
 
     def tx(x):
@@ -795,7 +795,27 @@ def converter_pagina(page, msp, doc_dxf, offset_y=0, escala=1.0, prefixo=""):
                     tbi = cor_int & 0xFF
 
                 layer_txt = obter_layer_texto(doc_dxf, tri, tgi, tbi, prefixo)
-                altura_txt = size * escala
+
+                # --------------------------------------------------
+                # PADRONIZACAO DE TAMANHO DE TEXTO POR COR (apenas 1:500):
+                #   Azul  (R<80, G<80, B>150) -> 3.0
+                #   Vermelho (R>150, G<80, B<80) -> 3.0
+                #   Outros (postes, cabos, etc.) -> 1.5
+                # Fora da escala 1:500 usa o tamanho original do PDF.
+                # --------------------------------------------------
+                if escala_desenho == 500:
+                    def _eh_azul(r, g, b):
+                        return r < 80 and g < 80 and b > 150
+
+                    def _eh_vermelho(r, g, b):
+                        return r > 150 and g < 80 and b < 80
+
+                    if _eh_azul(tri, tgi, tbi) or _eh_vermelho(tri, tgi, tbi):
+                        altura_txt = 3.0
+                    else:
+                        altura_txt = 1.5
+                else:
+                    altura_txt = size * escala
 
                 # Aplica mapeamento para o texto
                 aci_txt, rgb_txt = mapear_cor_inteligente(tri, tgi, tbi)
@@ -890,21 +910,31 @@ def converter_pdf_para_dxf(caminho_pdf, caminho_dxf=None,
     total = 0
     offset_y = 0
 
+    # --- Detectar escala ANTES da conversao para aplicar regras condicionais ---
+    print("\nDetectando escala do desenho...")
+    primeira_pagina_pre = doc_pdf[paginas[0]]
+    escala_desenho = detectar_escala_por_geometria(primeira_pagina_pre, escala)
+    print("  Escala identificada: 1:{}".format(escala_desenho))
+    if escala_desenho == 500:
+        print("  >> Escala 1:500 detectada: padronizacao de tamanho de texto ATIVA")
+    else:
+        print("  >> Padronizacao de tamanho de texto INATIVA (somente para 1:500)")
+
     for num in paginas:
         page = doc_pdf[num]
         prefixo = "P{}_".format(num + 1) if len(paginas) > 1 else ""
         print("\nConvertendo pagina {}...".format(num + 1))
         n = converter_pagina(page, msp, doc_dxf,
-                             offset_y=offset_y, escala=escala, prefixo=prefixo)
+                             offset_y=offset_y, escala=escala, prefixo=prefixo,
+                             escala_desenho=escala_desenho)
         print("  {} elementos convertidos".format(n))
         total += n
         offset_y -= (page.rect.height * escala) + 50
 
     doc_dxf.saveas(caminho_dxf)
 
-    # --- Detectar escala para EXIBICAO (nao altera conversao) ---
-    primeira_pagina = doc_pdf[paginas[0]]
-    escala_display = detectar_escala_por_geometria(primeira_pagina, escala)
+    # --- Escala ja detectada antes da conversao, reutilizar ---
+    escala_display = escala_desenho
     
     doc_pdf.close()
 
