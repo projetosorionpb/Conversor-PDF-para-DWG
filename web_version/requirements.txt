@@ -1,5 +1,5 @@
-flask==3.0.2
-pymupdf==1.23.26
-ezdxf==1.2.0
+flask
+pymupdf
+ezdxf
 gunicorn==21.2.0
 python-dotenv==1.0.1
