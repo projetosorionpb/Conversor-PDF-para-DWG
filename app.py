@@ -54,6 +54,10 @@ def convert():
     if file.filename == '':
         return jsonify({"status": "error", "message": "Arquivo sem nome."}), 400
     
+    # Lê o toggle da interface
+    converter_blocos = request.form.get('converter_blocos') == 'true'
+    print(f"Converter símbolos em blocos: {converter_blocos}")
+    
     if file and file.filename.lower().endswith('.pdf'):
         base_name = secrets.token_hex(4) + "_" + file.filename
         pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], base_name)
@@ -65,7 +69,7 @@ def convert():
             file.save(pdf_path)
             
             print(f"Iniciando conversão para: {file.filename}")
-            resultado = converter_pdf_para_dxf(pdf_path, dwg_path)
+            resultado = converter_pdf_para_dxf(pdf_path, dwg_path, converter_blocos=converter_blocos)
             
             if not os.path.exists(dwg_path):
                 print("ERRO: O conversor não gerou o arquivo DWG.")
@@ -90,6 +94,7 @@ def convert():
                 "escala_detectada": str(resultado.get("escala_detectada", "N/A")),
                 "total_elementos": resultado.get("total_elementos", 0),
                 "tamanho_kb": round(resultado.get("tamanho_kb", 0), 1),
+                "blocos_criados": resultado.get("blocos_criados", 0) if converter_blocos else None
             })
             
         except Exception as e:

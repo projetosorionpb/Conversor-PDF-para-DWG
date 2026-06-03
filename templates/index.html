@@ -317,6 +317,101 @@
         .animate-in {
             animation: slide-up 0.4s ease forwards;
         }
+
+        /* Toggle Switch */
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 1.5rem;
+            padding: 0.85rem 1.25rem;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .toggle-container:hover {
+            border-color: rgba(0, 106, 255, 0.4);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .toggle-info {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.2rem;
+        }
+
+        .toggle-label {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .toggle-label svg {
+            width: 16px;
+            height: 16px;
+            color: var(--primary-light);
+        }
+
+        .toggle-desc {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            text-align: left;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+            flex-shrink: 0;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.1);
+            transition: .3s;
+            border-radius: 24px;
+            border: 1px solid var(--border);
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        input:checked + .slider {
+            background-color: var(--primary);
+            border-color: var(--primary-light);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(20px);
+        }
     </style>
 </head>
 
@@ -336,6 +431,25 @@
                 <p id="drop-text">Arraste seu PDF aqui</p>
                 <span>ou clique para selecionar</span>
                 <input type="file" id="file-input" accept=".pdf">
+            </div>
+
+            <div class="toggle-container" id="toggle-container">
+                <div class="toggle-info">
+                    <div class="toggle-label">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="7" height="9" rx="1" />
+                            <rect x="14" y="3" width="7" height="5" rx="1" />
+                            <rect x="14" y="12" width="7" height="9" rx="1" />
+                            <rect x="3" y="16" width="7" height="5" rx="1" />
+                        </svg>
+                        <span>Converter símbolos em blocos</span>
+                    </div>
+                    <div class="toggle-desc">Substitui agrupamentos de linhas e hatches por blocos no CAD</div>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="chk-converter-blocos" checked>
+                    <span class="slider"></span>
+                </label>
             </div>
 
             <div class="status-container" id="status-container">
@@ -370,6 +484,10 @@
                     <div class="info-item">
                         <span class="label">Formato</span>
                         <span class="value">.DWG</span>
+                    </div>
+                    <div class="info-item" id="info-blocos-item" style="display: none;">
+                        <span class="label">Blocos Criados</span>
+                        <span class="value" id="info-blocos">—</span>
                     </div>
                 </div>
             </div>
@@ -452,6 +570,7 @@
             statusText.style.color = '';
             dropText.textContent = 'Arraste seu PDF aqui';
             fileInput.value = '';
+            document.getElementById('toggle-container').style.display = 'flex';
         }
 
         function startConversion(file) {
@@ -463,8 +582,11 @@
             statusText.textContent = 'Enviando arquivo...';
             statusText.style.color = '';
 
+            document.getElementById('toggle-container').style.display = 'none';
+
             const formData = new FormData();
             formData.append('file', file);
+            formData.append('converter_blocos', document.getElementById('chk-converter-blocos').checked);
 
             let prog = 0;
             const interval = setInterval(() => {
@@ -496,6 +618,14 @@
                     document.getElementById('info-escala').textContent = '1:' + data.escala_detectada;
                     document.getElementById('info-elementos').textContent = data.total_elementos.toLocaleString();
                     document.getElementById('info-tamanho').textContent = data.tamanho_kb + ' KB';
+                    
+                    const blocosItem = document.getElementById('info-blocos-item');
+                    if (data.blocos_criados !== undefined && data.blocos_criados !== null) {
+                        blocosItem.style.display = 'flex';
+                        document.getElementById('info-blocos').textContent = data.blocos_criados;
+                    } else {
+                        blocosItem.style.display = 'none';
+                    }
 
                     // Show actions
                     actions.style.display = 'flex';

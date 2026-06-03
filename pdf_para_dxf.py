@@ -797,13 +797,13 @@ def converter_pagina(page, msp, doc_dxf, offset_y=0, escala=1.0, prefixo="", esc
                 layer_txt = obter_layer_texto(doc_dxf, tri, tgi, tbi, prefixo)
 
                 # --------------------------------------------------
-                # PADRONIZACAO DE TAMANHO DE TEXTO POR COR (apenas 1:500):
+                # PADRONIZACAO DE TAMANHO DE TEXTO POR COR (para 1:500 e 1:1000):
                 #   Azul  (R<80, G<80, B>150) -> 3.0
                 #   Vermelho (R>150, G<80, B<80) -> 3.0
                 #   Outros (postes, cabos, etc.) -> 1.5
-                # Fora da escala 1:500 usa o tamanho original do PDF.
+                # Fora dessas escalas usa o tamanho original do PDF.
                 # --------------------------------------------------
-                if escala_desenho == 500:
+                if escala_desenho in (500, 1000):
                     def _eh_azul(r, g, b):
                         return r < 80 and g < 80 and b > 150
 
@@ -845,7 +845,8 @@ def converter_pagina(page, msp, doc_dxf, offset_y=0, escala=1.0, prefixo="", esc
 # FUNCAO PRINCIPAL
 # =============================================================
 def converter_pdf_para_dxf(caminho_pdf, caminho_dxf=None,
-                            paginas=None, escala_manual=None, versao_dxf="R2010"):
+                            paginas=None, escala_manual=None, versao_dxf="R2010",
+                            converter_blocos=False):
     """
     Converte um PDF vetorial para DXF/DWG.
     
@@ -859,6 +860,10 @@ def converter_pdf_para_dxf(caminho_pdf, caminho_dxf=None,
     Returns:
         dict com informacoes da conversao (escala_detectada, total_elementos, etc.)
     """
+    global _layers_criados, _linetype_cache
+    _layers_criados.clear()
+    _linetype_cache.clear()
+
     if not os.path.exists(caminho_pdf):
         print("Arquivo nao encontrado: {}".format(caminho_pdf))
         sys.exit(1)
@@ -903,7 +908,6 @@ def converter_pdf_para_dxf(caminho_pdf, caminho_dxf=None,
     msp = doc_dxf.modelspace()
 
     # Reset caches globais
-    global _linetype_cache, _layers_criados
     _linetype_cache = {}
     _layers_criados = set()
 
@@ -915,10 +919,10 @@ def converter_pdf_para_dxf(caminho_pdf, caminho_dxf=None,
     primeira_pagina_pre = doc_pdf[paginas[0]]
     escala_desenho = detectar_escala_por_geometria(primeira_pagina_pre, escala)
     print("  Escala identificada: 1:{}".format(escala_desenho))
-    if escala_desenho == 500:
-        print("  >> Escala 1:500 detectada: padronizacao de tamanho de texto ATIVA")
+    if escala_desenho in (500, 1000):
+        print("  >> Escala 1:{} detectada: padronizacao de tamanho de texto ATIVA".format(escala_desenho))
     else:
-        print("  >> Padronizacao de tamanho de texto INATIVA (somente para 1:500)")
+        print("  >> Padronizacao de tamanho de texto INATIVA (somente para 1:500 e 1:1000)")
 
     for num in paginas:
         page = doc_pdf[num]
@@ -930,6 +934,18 @@ def converter_pdf_para_dxf(caminho_pdf, caminho_dxf=None,
         print("  {} elementos convertidos".format(n))
         total += n
         offset_y -= (page.rect.height * escala) + 50
+
+    blocos_criados = 0
+    if converter_blocos:
+        print("\nIniciando conversão de símbolos em blocos...")
+        try:
+            from blocos_simbolos import executar_conversao_blocos
+            blocos_criados = executar_conversao_blocos(msp, doc_dxf)
+            print("  >> Conversão concluída: {} bloco(s) criado(s)".format(blocos_criados))
+        except Exception as e:
+            print("  >> Erro ao converter símbolos em blocos: {}".format(e))
+            import traceback
+            traceback.print_exc()
 
     doc_dxf.saveas(caminho_dxf)
 
@@ -967,6 +983,7 @@ def converter_pdf_para_dxf(caminho_pdf, caminho_dxf=None,
         "fator_escala": escala,
         "total_elementos": total,
         "tamanho_kb": kb,
+        "blocos_criados": blocos_criados,
     }
 
 
@@ -990,6 +1007,8 @@ if __name__ == "__main__":
     parser.add_argument("--versao", default="R2010",
                         choices=["R2000", "R2010", "R2013", "R2018"],
                         help="Versao do DXF (default: R2010)")
+    parser.add_argument("--blocos", "-b", action="store_true",
+                        help="Converter símbolos em blocos")
     args = parser.parse_args()
 
     if args.todas:
@@ -1004,5 +1023,6 @@ if __name__ == "__main__":
         caminho_dxf=args.saida,
         paginas=paginas,
         escala_manual=args.escala,
-        versao_dxf=args.versao
+        versao_dxf=args.versao,
+        converter_blocos=args.blocos
     )

@@ -23,47 +23,58 @@ def convert():
     if 'file' not in request.files:
         return jsonify({"status": "error", "message": "Nenhum arquivo enviado."}), 400
     
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({"status": "error", "message": "Arquivo sem nome."}), 400
+    files = request.files.getlist('file')
+    if not files or files[0].filename == '':
+        return jsonify({"status": "error", "message": "Nenhum arquivo selecionado."}), 400
     
-    if file and file.filename.lower().endswith('.pdf'):
-        base_name = secrets.token_hex(4) + "_" + file.filename
-        pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], base_name)
-        dwg_name = base_name.rsplit('.', 1)[0] + ".dwg"
-        dwg_path = os.path.join(app.config['UPLOAD_FOLDER'], dwg_name)
-        
-        try:
-            file.save(pdf_path)
+    resultados = []
+    erros = []
+    
+    for file in files:
+        if file and file.filename.lower().endswith('.pdf'):
+            base_name = secrets.token_hex(4) + "_" + file.filename
+            pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], base_name)
+            dwg_name = base_name.rsplit('.', 1)[0] + ".dwg"
+            dwg_path = os.path.join(app.config['UPLOAD_FOLDER'], dwg_name)
             
-            # Chama o motor de conversão
-            resultado = converter_pdf_para_dxf(pdf_path, dwg_path)
-            
-            if not os.path.exists(dwg_path):
-                return jsonify({"status": "error", "message": "Falha na conversão: Arquivo não gerado."}), 500
+            try:
+                file.save(pdf_path)
+                
+                # Chama o motor de conversão
+                resultado = converter_pdf_para_dxf(pdf_path, dwg_path)
+                
+                if not os.path.exists(dwg_path):
+                    erros.append(f"Falha na conversão de {file.filename}.")
+                    continue
 
-            @after_this_request
-            def cleanup(response):
+                resultados.append({
+                    "file_id": dwg_name, 
+                    "original_name": file.filename.rsplit('.', 1)[0],
+                    "escala_detectada": str(resultado.get("escala_detectada", "N/A")),
+                    "total_elementos": resultado.get("total_elementos", 0),
+                    "tamanho_kb": round(resultado.get("tamanho_kb", 0), 1),
+                })
+                
+            except Exception as e:
+                erros.append(f"Erro no servidor para {file.filename}: {str(e)}")
+            finally:
+                # Cleanup pdf path immediately after conversion
                 try:
                     if os.path.exists(pdf_path):
                         os.remove(pdf_path)
                 except Exception as e:
                     print(f"Erro no cleanup: {e}")
-                return response
-
-            return jsonify({
-                "status": "success", 
-                "file_id": dwg_name, 
-                "original_name": file.filename.rsplit('.', 1)[0],
-                "escala_detectada": str(resultado.get("escala_detectada", "N/A")),
-                "total_elementos": resultado.get("total_elementos", 0),
-                "tamanho_kb": round(resultado.get("tamanho_kb", 0), 1),
-            })
+        else:
+            erros.append(f"Formato inválido ({file.filename}). Use PDF.")
             
-        except Exception as e:
-            return jsonify({"status": "error", "message": f"Erro no servidor: {str(e)}"}), 500
-    
-    return jsonify({"status": "error", "message": "Formato inválido. Use PDF."}), 400
+    if not resultados:
+        return jsonify({"status": "error", "message": "Nenhum arquivo pôde ser convertido.", "erros": erros}), 400
+
+    return jsonify({
+        "status": "success", 
+        "arquivos": resultados,
+        "erros": erros
+    })
 
 @app.route('/download/<file_id>')
 def download(file_id):

@@ -317,8 +317,10 @@
                 </svg>
                 <p id="drop-text">Arraste seu PDF aqui</p>
                 <span>ou clique para selecionar</span>
-                <input type="file" id="file-input" accept=".pdf">
+                <input type="file" id="file-input" accept=".pdf" multiple>
             </div>
+            
+            <button class="btn-primary" id="btn-start-convert" style="display: none; width: 100%; margin-top: 15px;">Iniciar Conversão</button>
 
             <div class="status-container" id="status-container">
                 <div class="progress-bar">
@@ -379,8 +381,9 @@
         const btnNew = document.getElementById('btn-new');
         const dropText = document.getElementById('drop-text');
         const infoCard = document.getElementById('info-card');
+        const btnStartConvert = document.getElementById('btn-start-convert');
 
-        let currentFile = null;
+        let selectedFiles = [];
 
         // Prevent default drag behaviors
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
@@ -404,26 +407,47 @@
         dropZone.addEventListener('drop', handleDrop, false);
         dropZone.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', () => {
-            if (fileInput.files.length) handleFiles(fileInput.files[0]);
+            if (fileInput.files.length) handleFiles(fileInput.files);
+            // Limpa o input para permitir selecionar o mesmo arquivo novamente se necessário
+            fileInput.value = '';
         });
 
         function handleDrop(e) {
             const dt = e.dataTransfer;
-            const file = dt.files[0];
-            handleFiles(file);
+            handleFiles(dt.files);
         }
 
-        function handleFiles(file) {
-            if (!file.name.toLowerCase().endsWith('.pdf')) {
+        function handleFiles(files) {
+            const filesArray = Array.from(files);
+            if (filesArray.length === 0) return;
+
+            const validFiles = filesArray.filter(f => f.name.toLowerCase().endsWith('.pdf'));
+            if (validFiles.length === 0) {
                 alert('Por favor, selecione apenas arquivos PDF.');
                 return;
             }
 
-            dropText.textContent = file.name;
-            startConversion(file);
+            // Acumular arquivos evitando duplicatas
+            validFiles.forEach(newFile => {
+                if (!selectedFiles.find(f => f.name === newFile.name)) {
+                    selectedFiles.push(newFile);
+                }
+            });
+
+            dropText.textContent = selectedFiles.length === 1 ? selectedFiles[0].name : `${selectedFiles.length} arquivos selecionados. Adicione mais ou clique em Converter.`;
+            btnStartConvert.style.display = 'block';
+            btnStartConvert.textContent = `Converter ${selectedFiles.length} arquivo(s)`;
         }
 
+        btnStartConvert.addEventListener('click', () => {
+            if (selectedFiles.length > 0) {
+                btnStartConvert.style.display = 'none';
+                startConversion(selectedFiles);
+            }
+        });
+
         function resetUI() {
+            selectedFiles = [];
             mainCard.classList.remove('processing');
             statusContainer.style.display = 'none';
             actions.style.display = 'none';
@@ -434,26 +458,27 @@
             fileInput.value = '';
         }
 
-        function startConversion(file) {
+        function startConversion(filesArray) {
             mainCard.classList.add('processing');
             statusContainer.style.display = 'block';
             actions.style.display = 'none';
             infoCard.style.display = 'none';
             progressFill.style.width = '0%';
-            statusText.textContent = 'Enviando arquivo...';
+            statusText.textContent = `Enviando ${filesArray.length} arquivo(s)...`;
             statusText.style.color = '';
 
             const formData = new FormData();
-            formData.append('file', file);
+            for(let i=0; i<filesArray.length; i++) {
+                formData.append('file', filesArray[i]);
+            }
 
             let prog = 0;
             const interval = setInterval(() => {
                 prog += 1.5;
                 if (prog <= 90) progressFill.style.width = prog + '%';
-                if (prog >= 10 && prog < 12) statusText.textContent = 'Detectando escala...';
+                if (prog >= 10 && prog < 12) statusText.textContent = 'Processando arquivos...';
                 if (prog >= 30 && prog < 32) statusText.textContent = 'Convertendo vetores...';
-                if (prog >= 55 && prog < 57) statusText.textContent = 'Processando cores...';
-                if (prog >= 75 && prog < 77) statusText.textContent = 'Gerando arquivo DWG...';
+                if (prog >= 55 && prog < 57) statusText.textContent = 'Gerando arquivos DWG...';
             }, 120);
 
             fetch('/convert', {
@@ -473,16 +498,37 @@
                     // Show info card
                     infoCard.style.display = 'block';
                     infoCard.classList.add('animate-in');
-                    document.getElementById('info-escala').textContent = '1:' + data.escala_detectada;
-                    document.getElementById('info-elementos').textContent = data.total_elementos.toLocaleString();
-                    document.getElementById('info-tamanho').textContent = data.tamanho_kb + ' KB';
+                    
+                    if (data.arquivos.length === 1) {
+                        const arq = data.arquivos[0];
+                        document.getElementById('info-escala').textContent = '1:' + arq.escala_detectada;
+                        document.getElementById('info-elementos').textContent = arq.total_elementos.toLocaleString();
+                        document.getElementById('info-tamanho').textContent = arq.tamanho_kb + ' KB';
+                    } else {
+                        document.getElementById('info-escala').textContent = 'Várias';
+                        const totalElem = data.arquivos.reduce((sum, f) => sum + f.total_elementos, 0);
+                        document.getElementById('info-elementos').textContent = totalElem.toLocaleString();
+                        const totalSize = data.arquivos.reduce((sum, f) => sum + f.tamanho_kb, 0);
+                        document.getElementById('info-tamanho').textContent = totalSize.toFixed(1) + ' KB';
+                    }
 
                     // Show actions
                     actions.style.display = 'flex';
                     actions.classList.add('animate-in');
 
+                    btnDownload.textContent = data.arquivos.length === 1 ? 'Baixar arquivo .DWG' : `Baixar ${data.arquivos.length} arquivos`;
+
                     btnDownload.onclick = () => {
-                        window.location.href = '/download/' + data.file_id;
+                        data.arquivos.forEach((file, index) => {
+                            setTimeout(() => {
+                                const a = document.createElement('a');
+                                a.href = '/download/' + file.file_id;
+                                a.download = file.original_name + '.dwg';
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                            }, index * 800); // 800ms delay to prevent browser blocks
+                        });
                     };
 
                     btnNew.onclick = () => {
@@ -492,7 +538,7 @@
                 .catch(error => {
                     clearInterval(interval);
                     mainCard.classList.remove('processing');
-                    statusText.textContent = error.message || 'Erro ao converter arquivo.';
+                    statusText.textContent = error.message || 'Erro ao converter arquivo(s).';
                     statusText.style.color = '#ef4444';
                 });
         }
