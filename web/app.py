@@ -5,7 +5,7 @@ import secrets
 import threading
 import webbrowser
 import time
-from pdf_para_dxf import converter_pdf_para_dxf
+from src.converter import converter_pdf_para_dxf
 
 
 def resource_path(relative_path):

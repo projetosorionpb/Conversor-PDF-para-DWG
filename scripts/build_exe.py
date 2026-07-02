@@ -18,12 +18,12 @@ def build():
 
     # Argumentos do PyInstaller
     args = [
-        'app.py',                         # Script principal
+        'web/app.py',                     # Script principal
         '--name=%s' % EXE_NAME,           # Nome do .exe
         '--onedir',                       # Modo pasta (abertura instantanea)
         '--noconsole',                    # Não abre CMD ao rodar
-        '--add-data=templates;templates', # Inclui a pasta de templates
-        '--hidden-import=pdf_para_dxf',   # Garante que o conversor seja incluído
+        '--add-data=web/templates;templates', # Inclui a pasta de templates
+        '--hidden-import=src.converter',  # Garante que o conversor seja incluído
         '--collect-all=ezdxf',            # Dependências do ezdxf
         '--clean'
     ]
