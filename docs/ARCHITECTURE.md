@@ -4,9 +4,14 @@ O **Conversor PDF para DWG** é dividido logicamente em três camadas fundamenta
 
 ## Visão Geral do Fluxo
 
-1. O usuário acessa a página servida pelo `web/app.py`.
-2. O arquivo PDF é feito o upload e processado no endpoint `/convert`.
-3. O endpoint aciona o motor de conversão em `src.converter.converter_pdf_para_dxf`.
+1. **Interface (Web/Nativa):**
+   - Feita em HTML/CSS (Padrão EPD-PB) e JavaScript.
+   - Executada nativamente em janela desktop usando **PyWebView**.
+   - Comunica-se com o backend via requisições `fetch`.
+
+2. **Backend (Python/Flask + PyWebView):**
+   - Recebe o PDF via `multipart/form-data` e o armazena temporariamente na pasta `/tmp/uploads`.
+   - O endpoint `/convert` aciona o motor de conversão em `src.converter.converter_pdf_para_dxf`.
 4. O motor lê as páginas com `PyMuPDF` e inicializa o arquivo `ezdxf`.
 5. Durante o parsing, as geometrias são processadas com apoio dos utilitários em `src/geometry.py`, `src/colors.py` e `src/layers.py`.
 6. Terminado os caminhos (paths) e preenchimentos, os textos são passados ao `src/text.py`.

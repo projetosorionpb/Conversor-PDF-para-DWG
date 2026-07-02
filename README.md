@@ -12,13 +12,13 @@ Uma ferramenta profissional e leve para converter plantas baixas e projetos arqu
 - **Detecção Automática de Escala**: O sistema usa heurísticas verificando os comprimentos geométricos das linhas geradas com os textos (ex: '160 m') inseridos nas proximidades, detectando escalas como 1:500 ou 1:1000 de forma automática.
 - **Tracejados Reais**: Transforma os dash patterns complexos do vetor PDF em padrões Linetypes nativos do DXF (`PDF_DASH_...`).
 - **Conversão de Símbolos**: Identificação através de padrões matemáticos e geométricos (áreas, tamanhos de linhas) que substitui linhas espalhadas por Instâncias de Blocos AutoCAD formatados corretamente, mantendo a rotação.
-- **Standalone App**: Exportação como aplicativo Windows (`.exe`), o que significa que o usuário final só precisa abrir, usando a interface moderna em "Dark Mode" direto no navegador.
+- **Aplicativo Nativo**: Interface gráfica moderna renderizada em janela nativa do Windows (Dark Mode), sem depender de navegadores externos.
 
 ## 🛠️ Tecnologias Utilizadas
 
 - **Core / Extração**: `PyMuPDF` (leitura veloz e precisa de vetores, preenchimentos sólidos, caminhos bézier, propriedades de textos).
 - **Criação DXF**: `ezdxf` (criação estruturada do arquivo vetorial, blocks e linetypes seguindo o padrão oficial).
-- **Web App**: `Flask` (Roteamento leve local servindo a UI sem depender de nuvem externa).
+- **Interface Gráfica**: `PyWebView` + `Flask` (Roteamento leve local embutido em uma janela de Desktop nativa).
 
 ## 📂 Estrutura do Projeto
 
