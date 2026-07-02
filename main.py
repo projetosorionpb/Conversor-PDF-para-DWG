@@ -5,16 +5,21 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from web.app import app
-import threading
-from web.app import open_browser
+import webview
 
 if __name__ == '__main__':
-    is_exe = getattr(sys, 'frozen', False)
+    # Configura a janela nativa do webview
+    window = webview.create_window(
+        title='CONVERSOR PDF DWG',
+        url=app,
+        width=800,
+        height=680,
+        min_size=(600, 500),
+        background_color='#111319' # Fundo escuro padrão
+    )
     
-    if not is_exe:
-        if os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
-            threading.Thread(target=open_browser, daemon=True).start()
-        app.run(host='127.0.0.1', port=5077, debug=True)
-    else:
-        threading.Thread(target=open_browser, daemon=True).start()
-        app.run(host='127.0.0.1', port=5077, debug=False)
+    # Inicia a aplicação (PyWebView lida com o Flask internamente)
+    webview.start(
+        debug=False,
+        gui='edgehtml' if os.name == 'nt' else 'cef'
+    )

@@ -631,7 +631,25 @@
                     };
 
                     btnDownload.onclick = () => {
-                        window.location.href = '/download/' + data.file_id;
+                        statusContainer.style.display = 'block';
+                        statusText.textContent = 'Salvando na pasta Downloads...';
+                        statusText.style.color = '';
+                        
+                        fetch('/download/' + data.file_id)
+                            .then(res => res.json())
+                            .then(saveRes => {
+                                if (saveRes.status === 'success') {
+                                    statusText.textContent = 'Salvo com sucesso em: ' + saveRes.path;
+                                    statusText.style.color = 'var(--success)';
+                                } else {
+                                    statusText.textContent = 'Erro ao salvar: ' + saveRes.message;
+                                    statusText.style.color = 'var(--error)';
+                                }
+                            })
+                            .catch(err => {
+                                statusText.textContent = 'Erro de comunicação: ' + err;
+                                statusText.style.color = 'var(--error)';
+                            });
                     };
 
                     btnNew.onclick = () => {

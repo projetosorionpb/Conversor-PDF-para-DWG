@@ -20,23 +20,26 @@ def resource_path(relative_path):
 import shutil
 import tkinter as tk
 from tkinter import filedialog
+import tempfile
+import atexit
 
 app = Flask(__name__, 
             template_folder=resource_path('templates'),
             static_folder=resource_path('static'))
 
-# Caminhos absolutos para evitar erros de CWD
-if getattr(sys, 'frozen', False):
-    BASE_DIR = os.path.dirname(sys.executable)
-else:
-    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Cria um diretório temporário fantasma (auto-destruído ao fechar)
+SESSION_TEMP_DIR = tempfile.mkdtemp(prefix="pdf2dwg_")
 
-UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+def cleanup_temp_dir():
+    try:
+        shutil.rmtree(SESSION_TEMP_DIR, ignore_errors=True)
+    except:
+        pass
+
+atexit.register(cleanup_temp_dir)
+
+app.config['UPLOAD_FOLDER'] = SESSION_TEMP_DIR
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB
-
-if not os.path.exists(app.config['UPLOAD_FOLDER']):
-    os.makedirs(app.config['UPLOAD_FOLDER'])
 
 
 @app.route('/')
@@ -110,8 +113,21 @@ def convert():
 def download(file_id):
     path = os.path.join(app.config['UPLOAD_FOLDER'], file_id)
     if os.path.exists(path):
-        return send_file(os.path.abspath(path), as_attachment=True)
-    return "Arquivo expirado ou não encontrado", 404
+        parts = file_id.split('_', 1)
+        original_name = parts[1] if len(parts) > 1 else "projeto.dwg"
+        
+        # Encontra a pasta Downloads do usuário atual
+        downloads_folder = os.path.join(os.path.expanduser('~'), 'Downloads')
+        dest_path = os.path.join(downloads_folder, original_name)
+        
+        try:
+            # Copia o arquivo diretamente para a pasta Downloads do Windows
+            shutil.copy2(path, dest_path)
+            return jsonify({"status": "success", "path": dest_path})
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)}), 500
+            
+    return jsonify({"status": "error", "message": "Arquivo expirado ou não encontrado"}), 404
 
 
 @app.route('/save_as', methods=['POST'])
@@ -147,18 +163,5 @@ def save_as():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-def open_browser():
-    time.sleep(2)
-    webbrowser.open('http://127.0.0.1:5077')
-
-
-if __name__ == '__main__':
-    is_exe = getattr(sys, 'frozen', False)
-    
-    if not is_exe:
-        if os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
-            threading.Thread(target=open_browser, daemon=True).start()
-        app.run(host='127.0.0.1', port=5077, debug=True)
-    else:
-        threading.Thread(target=open_browser, daemon=True).start()
-        app.run(host='127.0.0.1', port=5077, debug=False)
+# A inicialização via '__main__' não é mais necessária, 
+# pois o main.py cuidará de rodar tudo via PyWebView.
