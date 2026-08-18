@@ -302,7 +302,7 @@ def converter_no_perto_formado(msp, doc):
     return blocos_criados
 
 
-def converter_poste_existente(msp, doc):
+def converter_poste_existente(msp, doc, escala_poste=1.0):
     """Rotina 2: POSTE_EXISTENTE (FORMADO/ATERRADO)."""
     blocos_criados = 0
     lista_quad = []
@@ -341,7 +341,11 @@ def converter_poste_existente(msp, doc):
                             "bbox": bbox_val,
                             "ang": ang
                         })
-            elif entity.dxftype() in ('LWPOLYLINE', 'LINE'):
+                length = get_comprimento(entity)
+                if 3.89 <= length <= 4.13:
+                    centro = get_centro(entity)
+                    lista_linha.append({"entity": entity, "len": length, "centro": centro})
+            elif entity.dxftype() == 'LINE':
                 length = get_comprimento(entity)
                 if 3.89 <= length <= 4.13:
                     centro = get_centro(entity)
@@ -425,6 +429,16 @@ def converter_poste_existente(msp, doc):
         if not all(e.is_alive for e in all_ents):
             continue
 
+        # Redimensiona o poste em torno do proprio centro (nao sai do lugar)
+        if escala_poste != 1.0:
+            mat = Matrix44.chain(
+                Matrix44.translate(-cx, -cy, 0),
+                Matrix44.scale(escala_poste, escala_poste, escala_poste),
+                Matrix44.translate(cx, cy, 0)
+            )
+            for ent in all_ents:
+                ent.transform(mat)
+
         nome_bloco = PEF_NOME_ATERRADO if tipo in ("B", "C") else PEF_NOME_FORMADO
 
         if tipo in ("B", "C"):
@@ -494,12 +508,16 @@ def converter_trafo_existente(msp, doc):
                 bbox_val = get_bbox(entity)
                 ang = get_angulo(entity)
                 lista_quad.append({"entity": entity, "centro": centro, "bbox": bbox_val, "ang": ang})
+            length = get_comprimento(entity)
+            if abs(length - TRAFO_LEN) <= TOL_LEN:
+                centro = get_centro(entity)
+                lista_linha.append({"entity": entity, "centro": centro})
         elif entity.dxftype() == 'HATCH':
             area = get_area(entity)
             if abs(area - TRAFO_AREA) <= TOL_AREA:
                 centro = get_centro(entity)
                 lista_hatch.append({"entity": entity, "centro": centro})
-        elif entity.dxftype() in ('LWPOLYLINE', 'LINE'):
+        elif entity.dxftype() == 'LINE':
             length = get_comprimento(entity)
             if abs(length - TRAFO_LEN) <= TOL_LEN:
                 centro = get_centro(entity)
@@ -591,13 +609,23 @@ def converter_trafo_existente(msp, doc):
 
 
 # =========================================================================
+# PARAMETROS DE ESCALA
+# =========================================================================
+
+# Fator de escala aplicado aos postes quando o desenho esta na escala 1:1000,
+# para que fiquem com o mesmo tamanho dos postes de 1:500 (comparados via align).
+ESCALA_POSTE_1_1000 = 0.7996
+
+
+# =========================================================================
 # ORQUESTRADOR PRINCIPAL
 # =========================================================================
 
-def executar_conversao_blocos(msp, doc):
+def executar_conversao_blocos(msp, doc, escala_desenho=None):
     """Executa as rotinas de conversão em lote e retorna o total de blocos criados."""
+    escala_poste = ESCALA_POSTE_1_1000 if escala_desenho == 1000 else 1.0
     total = 0
     total += converter_no_perto_formado(msp, doc)
-    total += converter_poste_existente(msp, doc)
+    total += converter_poste_existente(msp, doc, escala_poste)
     total += converter_trafo_existente(msp, doc)
     return total

@@ -355,7 +355,7 @@ def converter_pdf_para_dxf(caminho_pdf, caminho_dxf=None,
     if converter_blocos:
         print("\nIniciando conversão de símbolos em blocos...")
         try:
-            blocos_criados = executar_conversao_blocos(msp, doc_dxf)
+            blocos_criados = executar_conversao_blocos(msp, doc_dxf, escala_desenho=escala_desenho)
             print("  >> Conversão concluída: {} bloco(s) criado(s)".format(blocos_criados))
         except Exception as e:
             print("  >> Erro ao converter símbolos em blocos: {}".format(e))
