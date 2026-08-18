@@ -18,13 +18,17 @@ def build():
 
     # Argumentos do PyInstaller
     args = [
-        'web/app.py',                     # Script principal
-        '--name=%s' % EXE_NAME,           # Nome do .exe
-        '--onedir',                       # Modo pasta (abertura instantanea)
-        '--noconsole',                    # Não abre CMD ao rodar
+        'main.py',                     # Script principal (abre a janela nativa)
+        '--name=%s' % EXE_NAME,        # Nome do .exe
+        '--onedir',                    # Modo pasta (abertura instantanea)
+        '--noconsole',                 # Não abre CMD ao rodar
         '--add-data=web/templates;templates', # Inclui a pasta de templates
-        '--hidden-import=src.converter',  # Garante que o conversor seja incluído
-        '--collect-all=ezdxf',            # Dependências do ezdxf
+        '--hidden-import=src.converter',      # Garante que o conversor seja incluído
+        '--collect-all=ezdxf',         # Dependências do ezdxf
+        '--collect-all=fitz',          # PyMuPDF (nativos + alias fitz)
+        '--collect-all=pywebview',     # Backend de janela nativa
+        '--collect-all=clr_loader',    # Carregador .NET (pythonnet)
+        '--collect-all=pythonnet',     # Runtime .NET para o edgehtml
         '--clean'
     ]
 
